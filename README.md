@@ -1,4 +1,4 @@
-# SEDS-INDUCTION
+# V Y SURYA | 2026A7PS0144H | Avionics
 TASKS FOR SEDS CLUB INDUCTION BPHC (THE AVIONICS TEAM) 
 ## TASK 1
 For task one I hadnt faced major issues I read the documentation and followed the resources provided by the team the main issue faced for this task was that the graph colour was continously changing for every frame and to fix this issue I used the subplots to define the default line properties.
