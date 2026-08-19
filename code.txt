@@ -1,0 +1,191 @@
+/*
+ * SEDS Avionics Task 2: Keeping Watch Over Odysseus
+ */
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+
+LiquidCrystal_I2C lcd(0x20, 16, 2);
+
+// Pin Definitions
+const int BUTTON_PIN = 2;
+const int LED_PIN    = 3;
+const int PING_PIN   = 7;
+const int BUZZER_PIN = 8;
+const int LIGHT_PIN  = A0;
+
+// Thresholds
+const int LIGHT_THRESHOLD = 512;    // Below half light intensity
+const int DISTANCE_THRESHOLD = 100; // 100 cm
+
+// State Enum
+enum State {
+  OPEN_SEA,
+  ANCHOR_DROPPED,
+  STORM,
+  CHARYBDIS,
+  WRECKED
+};
+
+State currentState = OPEN_SEA;
+State previousState = OPEN_SEA;
+
+// Timing Variables
+unsigned long stateStartTime = 0;
+unsigned long lastBlinkTime  = 0;
+bool ledState = LOW;
+
+// Pushbutton Toggle
+bool lastButtonState = HIGH;
+bool anchorState = false;
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  lcd.init();
+  lcd.backlight();
+  
+  updateDisplay("OPEN SEA", "Sailing Clear");
+}
+
+void loop() {
+  // 1. Pushbutton Read (Toggle Anchor state)
+  bool currentReading = digitalRead(BUTTON_PIN);
+  if (lastButtonState == HIGH && currentReading == LOW) {
+    anchorState = !anchorState;
+    delay(50); // Debounce
+  }
+  lastButtonState = currentReading;
+
+  // Locks completely if ship becomes WRECKED
+  if (currentState == WRECKED) {
+    digitalWrite(LED_PIN, LOW);
+    noTone(BUZZER_PIN);
+    updateDisplay("WRECKED", "Journey Ended!");
+    return;
+  }
+
+  // 2. Read Sensors
+  int lightVal = analogRead(LIGHT_PIN); 
+  int distVal  = readUltrasonicDistance();
+
+  // Danger Triggers
+  bool stormDetected     = (lightVal < LIGHT_THRESHOLD);
+  bool charybdisDetected = (distVal < DISTANCE_THRESHOLD);
+
+  // 3. State Machine Logic
+  if (anchorState) {
+    currentState = ANCHOR_DROPPED;
+  } 
+  else if (currentState == OPEN_SEA || currentState == ANCHOR_DROPPED) {
+    // If both occur, priority stays with whichever was triggered first
+    if (charybdisDetected) {
+      currentState = CHARYBDIS;
+    } else if (stormDetected) {
+      currentState = STORM;
+    } else {
+      currentState = OPEN_SEA;
+    }
+  } 
+  else if (currentState == STORM && !stormDetected) {
+    currentState = OPEN_SEA;
+  } 
+  else if (currentState == CHARYBDIS && !charybdisDetected) {
+    currentState = OPEN_SEA;
+  }
+
+  // Timer resets on state change
+  if (currentState != previousState) {
+    stateStartTime = millis();
+    previousState = currentState;
+    digitalWrite(LED_PIN, LOW);
+    noTone(BUZZER_PIN);
+  }
+
+  // 4. State Execution
+  switch (currentState) {
+    
+    case OPEN_SEA:
+      digitalWrite(LED_PIN, LOW);
+      noTone(BUZZER_PIN);
+      updateDisplay("OPEN SEA", "D:" + String(distVal) + "cm L:" + String(lightVal));
+      break;
+
+    case ANCHOR_DROPPED:
+      digitalWrite(LED_PIN, LOW);
+      noTone(BUZZER_PIN);
+      updateDisplay("ANCHOR DROPPED", "Protected");
+      break;
+
+    case STORM:
+      noTone(BUZZER_PIN);
+      // Blink LED in storm
+      if (millis() - lastBlinkTime >= 250) {
+        lastBlinkTime = millis();
+        ledState = !ledState;
+        digitalWrite(LED_PIN, ledState);
+      }
+      // Check 5 second threshold
+      if (millis() - stateStartTime >= 5000) {
+        currentState = WRECKED;
+      } else {
+        int timeLeft = 5 - ((millis() - stateStartTime) / 1000);
+        updateDisplay("STORM", "Wreck in: " + String(timeLeft) + "s");
+      }
+      break;
+
+    case CHARYBDIS:
+      digitalWrite(LED_PIN, LOW);
+      // Sound Buzzer in Charybdis
+      tone(BUZZER_PIN, 1000);
+      
+      // Check 5 second threshold
+      if (millis() - stateStartTime >= 5000) {
+        currentState = WRECKED;
+      } else {
+        int timeLeft = 5 - ((millis() - stateStartTime) / 1000);
+        updateDisplay("CHARYBDIS", "Wreck in: " + String(timeLeft) + "s");
+      }
+      break;
+
+    case WRECKED:
+      break;
+  }
+
+  delay(50);
+}
+
+// Distance measurement helper
+int readUltrasonicDistance() {
+  pinMode(PING_PIN, OUTPUT);
+  digitalWrite(PING_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(PING_PIN, HIGH);
+  delayMicroseconds(5);
+  digitalWrite(PING_PIN, LOW);
+
+  pinMode(PING_PIN, INPUT);
+  long duration = pulseIn(PING_PIN, HIGH);
+  return duration / 29 / 2;
+}
+
+// Non-flickering LCD update helper
+void updateDisplay(String line1, String line2) {
+  static String lastLine1 = "";
+  static String lastLine2 = "";
+
+  if (line1 != lastLine1 || line2 != lastLine2) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(line1);
+    lcd.setCursor(0, 1);
+    lcd.print(line2);
+
+    lastLine1 = line1;
+    lastLine2 = line2;
+  }
