@@ -8,6 +8,14 @@ data = pd.read_csv('Depth Data.csv')
 data['Point'] = pd.to_numeric(data['Point'], errors='coerce')
 data['Depth (m)'] = pd.to_numeric(data['Depth (m)'], errors='coerce')
 data = data.dropna(subset=['Point', 'Depth (m)']).reset_index(drop=True)
+for i in range(1, len(data)):
+    prev_val = data.loc[i - 1, 'Depth (m)']
+    curr_val = data.loc[i, 'Depth (m)']
+    
+    if abs(curr_val - prev_val) >= 50:
+
+        start_idx = max(0, i - 2)
+        data.loc[i, 'Depth (m)'] = data.loc[start_idx:i - 1, 'Depth (m)'].mean()
 
 fig, ax = plt.subplots()
 
@@ -27,20 +35,12 @@ ax.set_ylabel("Depth (m)")
 ax.set_title("Live Depth Animation")
 
 def animate(i):
-    if i >0 :
-        pd= data['Depth (m)'].iloc[i-1]
-        cd=data['Depth (m)'].iloc[i]
-        if abs(pd-cd) >= 30:
-            x_vals = data['Point'].iloc[:i]
-            y_vals = data['Depth (m)'].iloc[:i]
-            line.set_data(x_vals, y_vals)
-            return (line,)
     x_vals = data['Point'].iloc[:i+1]
     y_vals = data['Depth (m)'].iloc[:i+1]
     line.set_data(x_vals, y_vals)
     return(line,)
 
-ani = FuncAnimation(fig, animate, frames=len(data))
+ani = FuncAnimation(fig, animate, frames=len(data),interval=1000)
 
 plt.tight_layout()
 plt.show()
