@@ -9,6 +9,8 @@ TASKS FOR SEDS CLUB INDUCTION BPHC (THE AVIONICS TEAM)
 
 * Window Selection: Tested multiple window lengths, settling on two points to maintain local depth accuracy while filtering out sharp outliers within a tight context window.
 ## TASK 2
+Tinkercad Link
+https://www.tinkercad.com/things/aHF5sIKsUAZ-seds-project
 Task Overview
 
 * Designed and assembled the Arduino schematic and component wiring to create a fully functional system.
